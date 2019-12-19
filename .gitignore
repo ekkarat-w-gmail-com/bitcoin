@@ -124,3 +124,59 @@ db4/
 
 # clang-check
 *.plist
+ublishวิธีการจะได้รับScientist::Resultตัวอย่างที่เกี่ยวข้องกับScientist::Observations:
+
+คลาส MyExperiment 
+  รวมถึง Scientist :: Experiment
+
+  # ...
+
+  def  เผยแพร่ ( ผล )
+
+    #จัดเก็บเวลาสำหรับค่าควบคุม
+    $ statsd .timing "วิทยาศาสตร์. # { name } .control " , result.control.duration
+     #สำหรับผู้สมัคร (เฉพาะคนแรกดูที่ "ทำลายกฎ" ด้านล่าง, 
+    $ statsd .timing "วิทยาศาสตร์. # { name } .candidate " , result.candidates.first.duration
+
+    #และนับสำหรับการจับคู่ / ละเว้น / ไม่ตรงกัน: 
+    ถ้า result.matches
+      $ statsd .increment "วิทยาศาสตร์. # { name }.ตรงกัน"
+     elsif result.ignored?
+      $ statsd .increment "วิทยาศาสตร์. # { name } .ignored "
+     else 
+      $ statsd .increment "วิทยาศาสตร์. # { name } .matchatched " 
+      #ในที่สุดเก็บข้อผิดพลาดใน redis เพื่อให้พวกเขาสามารถดึงและตรวจสอบ
+      # ในภายหลังสำหรับการดีบักและ การวิจัย.
+      store_mismatch_data (ผล)
+    จบ
+  สิ้น
+
+  def  store_mismatch_data ( ผลลัพธ์ )
+    payload = {
+       : name             => name
+                ,: context          => context
+       ,: control => observ_payload (result.control),:
+       candidate        => observ_payload (result.candidates.first),:
+       execution_order => result.observations.map ( & : ชื่อ )
+    }
+
+    key =  "วิทยาศาสตร์. # { name } .matchatch "
+     $ redis .lpush key, payload
+     $ redis .ltrim key, 0 , 1000 
+  end
+
+  def  สังเกต_payload ( การสังเกต )
+     ถ้าการสังเกตเพิ่มขึ้น?
+      {
+        : exception => observ.exception.class,:
+         message    =>
+         observ.exception.message,: backtrace => observ.exception.backtrace
+      }
+    อื่น
+      {
+        #โปรดดูที่ "ทำให้สะอาดอยู่เสมอ" ด้านบน
+        : value => observ.cleaned_value
+      }
+    end 
+  end 
+end
